@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faster R-CNN: Interactive Explainer (Fixed Charts)</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Use specific version of Chart.js for stability -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    
+    <!-- MathJax Configuration -->
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']],
+                processEscapes: true
+            },
+            svg: { fontCache: 'global' }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=JetBrains+Mono:wght@400&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; }
+        .math-font { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 5px; border: 2px solid #111827; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+        
+        /* High Contrast Glass Panel */
+        .glass-panel {
+            background: rgba(31, 41, 55, 0.85); 
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(75, 85, 99, 0.6); 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Chart container bg */
+        .chart-container {
+            background: #1f2937; /* Gray-800 */
+            border: 1px solid #374151; /* Gray-700 */
+        }
+        
+        /* Animation for the Hook */
+        @keyframes scan {
+            0% { top: 0%; opacity: 0; box-shadow: 0 0 15px #22d3ee; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: 100%; opacity: 0; box-shadow: 0 0 15px #22d3ee; }
+        }
+        .scanner-line {
+            position: absolute;
+            width: 100%;
+            height: 3px;
+            background: #22d3ee; /* Cyan-400 */
+            box-shadow: 0 0 20px #22d3ee;
+            animation: scan 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+        }
+        
+        /* Fix for MathJax visibility */
+        mjx-container {
+            font-size: 115% !important;
+            color: #f3f4f6 !important; 
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-gray-100 antialiased selection:bg-cyan-500 selection:text-white">
+
+    <!-- SECTION 1: THE VISUAL HOOK -->
+    <header class="min-h-[70vh] flex flex-col justify-center items-center relative overflow-hidden border-b border-gray-800 bg-[#0B0F19]">
+        <div class="absolute inset-0 bg-[linear-gradient(to_right,#374151_1px,transparent_1px),linear-gradient(to_bottom,#374151_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-gray-950 via-transparent to-transparent"></div>
+        
+        <!-- Animated Scanner Effect -->
+        <div class="w-64 h-64 border-2 border-cyan-500/50 rounded-xl relative mb-8 bg-gray-900/80 backdrop-blur-md shadow-[0_0_60px_-15px_rgba(34,211,238,0.4)]">
+            <div class="absolute inset-0 flex items-center justify-center">
+                <span class="text-8xl filter drop-shadow-lg">🎯</span>
+            </div>
+            <div class="scanner-line"></div>
+            <div class="absolute top-3 right-3 flex gap-2">
+                <div class="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse"></div>
+                <div class="w-3 h-3 rounded-full bg-yellow-400"></div>
+                <div class="w-3 h-3 rounded-full bg-green-500"></div>
+            </div>
+            <div class="absolute -bottom-10 left-0 right-0 text-center text-sm text-cyan-400 font-mono tracking-[0.2em] font-bold text-shadow-glow">RPN ACTIVE</div>
+        </div>
+
+        <h1 class="text-5xl md:text-7xl font-extrabold text-white mb-4 text-center tracking-tight drop-shadow-2xl">
+            Faster <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">R-CNN</span>
+        </h1>
+        <p class="text-xl md:text-2xl text-gray-300 max-w-2xl text-center px-4 font-light leading-relaxed">
+            Towards Real-Time Object Detection with <span class="text-cyan-300 font-semibold border-b-2 border-cyan-500/30 pb-1">Region Proposal Networks</span>
+        </p>
+        
+        <div class="mt-10 flex flex-wrap justify-center gap-8 text-sm font-mono text-gray-400 uppercase tracking-wide">
+            <span class="hover:text-cyan-300 transition-colors cursor-default">Shaoqing Ren</span> • 
+            <span class="hover:text-cyan-300 transition-colors cursor-default">Kaiming He</span> • 
+            <span class="hover:text-cyan-300 transition-colors cursor-default">Ross Girshick</span> • 
+            <span class="hover:text-cyan-300 transition-colors cursor-default">Jian Sun</span>
+        </div>
+        
+        <div class="mt-4 text-xs text-gray-500 font-mono bg-gray-900 px-3 py-1 rounded-full border border-gray-800">NIPS 2015 • Microsoft Research</div>
+
+        <div class="mt-12 max-w-3xl text-center px-6">
+            <div class="bg-gray-900/50 p-6 rounded-2xl border border-gray-700/50 backdrop-blur-sm">
+                <p class="text-lg leading-relaxed text-gray-200">
+                    <strong class="text-white text-xl block mb-2">💡 Core Insight</strong> 
+                    Thay vì dùng thuật toán rời rạc chậm chạp (như Selective Search), Faster R-CNN tích hợp việc đề xuất vùng trực tiếp vào mạng Neural.
+                    Kết quả? Tốc độ tăng gấp <strong class="text-green-400 font-bold bg-green-900/30 px-2 py-0.5 rounded">10 lần</strong> và độ chính xác đạt đỉnh cao (SOTA) thời điểm đó.
+                </p>
+            </div>
+        </div>
+    </header>
+
+    <!-- SECTION 2: THE INTERACTIVE PLAYGROUND -->
+    <section class="py-24 px-4 md:px-12 max-w-7xl mx-auto border-b border-gray-800">
+        <div class="flex items-center gap-5 mb-10">
+            <div class="h-10 w-2 bg-cyan-400 rounded-full shadow-[0_0_15px_#22d3ee]"></div>
+            <h2 class="text-4xl font-bold text-white tracking-tight">Interactive Playground</h2>
+        </div>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-10 mb-10">
+            <div class="lg:col-span-2">
+                <p class="text-gray-300 text-lg leading-relaxed mb-6">
+                    RPN sử dụng một cửa sổ trượt (sliding window) kích thước $3 \times 3$ trên bản đồ đặc trưng (feature map). 
+                    Tại mỗi vị trí trung tâm, nó giả lập $k=9$ hộp tham chiếu gọi là <strong class="text-white">Anchors</strong>.
+                </p>
+                <div class="bg-blue-900/30 border-l-4 border-blue-400 p-5 rounded-r-lg shadow-lg">
+                    <strong class="text-blue-300 block mb-1 text-lg">👇 Hãy thử ngay:</strong> 
+                    <span class="text-gray-200">Di chuột vào vùng đen bên dưới. Bạn đang đóng vai RPN quét qua hình ảnh. Quan sát màu sắc Anchors thay đổi khi khớp với vật thể thật.</span>
+                </div>
+            </div>
+            <div class="glass-panel p-6 rounded-xl text-sm space-y-3 font-mono text-gray-300 shadow-xl">
+                <h4 class="text-cyan-400 font-bold border-b border-gray-600 pb-2 mb-2">PARAMETERS</h4>
+                <div class="flex justify-between items-center">
+                    <span>Feature Stride:</span> <span class="text-white bg-gray-700 px-2 py-0.5 rounded">16px</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span>Scales:</span> <span class="text-white">$128^2, 256^2, 512^2$</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span>Ratios:</span> <span class="text-white">1:1, 1:2, 2:1</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Container -->
+        <div class="relative bg-black rounded-2xl overflow-hidden shadow-2xl border-2 border-gray-700">
+            <canvas id="simCanvas" width="800" height="500" class="w-full h-auto cursor-crosshair"></canvas>
+            
+            <!-- Floating Metrics Panel -->
+            <div class="absolute top-4 right-4 glass-panel p-5 rounded-xl w-72 shadow-2xl border border-cyan-500/30 pointer-events-none">
+                <h3 class="text-cyan-400 font-bold mb-3 pb-2 border-b border-gray-600 text-lg">📡 Live Metrics</h3>
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <div class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Highest IoU</div>
+                        <div id="iouDisplay" class="text-4xl font-bold text-white mt-1 tabular-nums">0.00</div>
+                    </div>
+                    <div class="flex flex-col justify-end">
+                        <div id="statusDisplay" class="font-bold text-gray-500 text-xs uppercase bg-gray-900/80 px-2 py-1 rounded text-center">Scanning...</div>
+                    </div>
+                </div>
+                
+                <div class="pt-3 border-t border-gray-700 space-y-2.5 bg-gray-800/50 p-3 rounded-lg">
+                    <div class="flex items-center justify-between text-xs font-medium">
+                        <span class="text-green-400">Positive (IoU > 0.7)</span>
+                        <div class="w-3 h-3 bg-green-500 rounded-sm shadow-[0_0_8px_#22c55e]"></div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs font-medium">
+                        <span class="text-yellow-400">Ignored Zone</span>
+                        <div class="w-3 h-3 bg-yellow-500 rounded-sm"></div>
+                    </div>
+                    <div class="flex items-center justify-between text-xs font-medium">
+                        <span class="text-red-400">Negative (IoU < 0.3)</span>
+                        <div class="w-3 h-3 bg-red-500 rounded-sm"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <p class="text-center text-gray-500 mt-4 text-sm italic">Canvas mô phỏng dữ liệu. Các đường lưới (grid) thể hiện các bước nhảy (stride) của cửa sổ trượt.</p>
+    </section>
+
+    <!-- SECTION 3: DEEP DIVE MATH -->
+    <section class="py-20 px-4 md:px-12 bg-[#0F131E] border-b border-gray-800">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex items-center gap-5 mb-12">
+                <div class="h-10 w-2 bg-purple-500 rounded-full shadow-[0_0_15px_#a855f7]"></div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white">Toán học đằng sau RPN</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <!-- Bounding Box Regression -->
+                <div>
+                    <h3 class="text-2xl font-bold text-purple-400 mb-5 flex items-center gap-3">
+                        <span>1. Bounding Box Regression</span>
+                        <span class="text-xs font-mono bg-purple-900/50 text-purple-200 px-3 py-1 rounded border border-purple-500/50">Eq. 2</span>
+                    </h3>
+                    <p class="text-gray-300 text-base mb-6 text-justify leading-relaxed">
+                        RPN không dự đoán tọa độ tuyệt đối $(x, y, w, h)$ trực tiếp vì việc này rất khó hội tụ. Thay vào đó, nó học <strong>độ lệch (offset)</strong> so với Anchor Box, giúp mô hình ổn định hơn nhiều.
+                    </p>
+                    <div class="bg-black p-6 rounded-xl border border-gray-700 font-mono text-base overflow-x-auto shadow-inner">
+                        <div class="grid grid-cols-2 gap-y-6 gap-x-8">
+                            <div class="text-purple-300 font-bold">$$ t_x = (x - x_a) / w_a $$</div>
+                            <div class="text-purple-300 font-bold">$$ t_y = (y - y_a) / h_a $$</div>
+                            <div class="text-purple-300 font-bold">$$ t_w = \log(w / w_a) $$</div>
+                            <div class="text-purple-300 font-bold">$$ t_h = \log(h / h_a) $$</div>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-gray-800 text-sm text-gray-400">
+                            • <span class="text-white">$x, x_a$</span>: Tọa độ dự đoán & anchor.<br>
+                            • <span class="text-white">$t_x, t_w$</span>: Giá trị mạng Neural cần học.<br>
+                            Mục tiêu là biến Anchor Box ($x_a$) thành Predicted Box ($x$) sao cho khớp với Ground Truth.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loss Function -->
+                <div>
+                    <h3 class="text-2xl font-bold text-cyan-400 mb-5 flex items-center gap-3">
+                        <span>2. Multi-task Loss</span>
+                        <span class="text-xs font-mono bg-cyan-900/50 text-cyan-200 px-3 py-1 rounded border border-cyan-500/50">Eq. 1</span>
+                    </h3>
+                    <p class="text-gray-300 text-base mb-6 text-justify leading-relaxed">
+                        Hàm Loss tổng hợp cả nhiệm vụ phân loại (Classification) và hồi quy (Regression), đảm bảo học được cả hai cùng lúc.
+                    </p>
+                    <div class="bg-black p-6 rounded-xl border border-gray-700 font-mono text-base overflow-x-auto shadow-inner">
+                        <div class="py-2 text-center text-cyan-200 font-bold">
+                        $$ L(\{p_i\}, \{t_i\}) = \frac{1}{N_{cls}}\sum_{i}L_{cls}(p_i, p_i^*) + \lambda\frac{1}{N_{reg}}\sum_{i}p_i^*L_{reg}(t_i, t_i^*) $$
+                        </div>
+                        <div class="mt-6 space-y-3 text-sm text-gray-400">
+                            <p>• <span class="text-yellow-400 font-bold">$p_i^* L_{reg}$</span>: Loss hồi quy chỉ tính khi Anchor là vật thể ($p_i^*=1$). Nếu là nền ($p_i^*=0$), số hạng này biến mất.</p>
+                            <p>• <span class="text-white">$\lambda=10$</span>: Hệ số cân bằng.</p>
+                            <p>• <span class="text-white">$N_{cls} \approx 256$</span>, <span class="text-white">$N_{reg} \approx 2400$</span>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 4: TRAINING STRATEGY -->
+    <section class="py-20 px-4 md:px-12 bg-gray-950 border-b border-gray-800">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex items-center gap-5 mb-10">
+                <div class="h-10 w-2 bg-yellow-500 rounded-full shadow-[0_0_15px_#eab308]"></div>
+                <h2 class="text-3xl md:text-4xl font-bold text-white">Chiến lược Huấn luyện (4-Step)</h2>
+            </div>
+            
+            <p class="text-gray-300 mb-10 max-w-3xl text-lg">
+                Quy trình train "xen kẽ" để 2 mạng (RPN và Detector) có thể chia sẻ các lớp Convolution chung.
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <!-- Step 1 -->
+                <div class="chart-container p-6 rounded-xl hover:border-yellow-500 transition-colors group relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-yellow-500/20 to-transparent"></div>
+                    <div class="text-5xl font-bold text-gray-800 absolute -bottom-4 -right-4 group-hover:text-yellow-500/20 transition-colors">1</div>
+                    <h4 class="font-bold text-yellow-400 text-xl mb-3">Train RPN</h4>
+                    <p class="text-sm text-gray-300 leading-snug">Khởi tạo từ ImageNet. Train độc lập mạng RPN để tạo ra proposals.</p>
+                    <div class="mt-4 inline-block text-[10px] font-mono bg-black/50 px-2 py-1 rounded text-gray-400 border border-gray-700">Weight: Init Conv_1</div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="chart-container p-6 rounded-xl hover:border-yellow-500 transition-colors group relative overflow-hidden">
+                     <div class="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-yellow-500/20 to-transparent"></div>
+                     <div class="text-5xl font-bold text-gray-800 absolute -bottom-4 -right-4 group-hover:text-yellow-500/20 transition-colors">2</div>
+                    <h4 class="font-bold text-yellow-400 text-xl mb-3">Train Fast R-CNN</h4>
+                    <p class="text-sm text-gray-300 leading-snug">Dùng proposals từ Bước 1 để train mạng Detector độc lập.</p>
+                    <div class="mt-4 inline-block text-[10px] font-mono bg-black/50 px-2 py-1 rounded text-gray-400 border border-gray-700">Weight: Separate Conv_2</div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="chart-container p-6 rounded-xl hover:border-yellow-500 transition-colors group relative overflow-hidden ring-1 ring-yellow-500/50">
+                     <div class="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-green-500/20 to-transparent"></div>
+                     <div class="text-5xl font-bold text-gray-800 absolute -bottom-4 -right-4 group-hover:text-green-500/20 transition-colors">3</div>
+                    <h4 class="font-bold text-green-400 text-xl mb-3">Fine-tune RPN</h4>
+                    <p class="text-sm text-gray-300 leading-snug">Init bằng Detector. <span class="text-white font-bold bg-green-900/50 px-1 rounded">CỐ ĐỊNH</span> các lớp Conv chung, chỉ train RPN.</p>
+                    <div class="mt-4 inline-block text-[10px] font-mono bg-black/50 px-2 py-1 rounded text-green-400 border border-green-900">✨ Shared Layers Fixed</div>
+                </div>
+
+                <!-- Step 4 -->
+                <div class="chart-container p-6 rounded-xl hover:border-yellow-500 transition-colors group relative overflow-hidden ring-1 ring-yellow-500/50">
+                     <div class="absolute top-0 right-0 w-16 h-16 bg-gradient-to-bl from-green-500/20 to-transparent"></div>
+                     <div class="text-5xl font-bold text-gray-800 absolute -bottom-4 -right-4 group-hover:text-green-500/20 transition-colors">4</div>
+                    <h4 class="font-bold text-green-400 text-xl mb-3">Fine-tune Detector</h4>
+                    <p class="text-sm text-gray-300 leading-snug">Giữ cố định Conv chung, chỉ train các lớp FC của Fast R-CNN.</p>
+                    <div class="mt-4 inline-block text-[10px] font-mono bg-black/50 px-2 py-1 rounded text-green-400 border border-green-900">✨ Unified Network</div>
+                </div>
+            </div>
+            
+            <!-- Implementation Details -->
+            <div class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-8 text-sm text-gray-300">
+                <div class="bg-gray-900/80 p-5 rounded-lg border-l-4 border-purple-500 shadow-md">
+                    <h5 class="text-white font-bold text-base mb-2">🏷️ Cross-boundary Anchors (Anchors vượt biên)</h5>
+                    <ul class="list-none space-y-2 mt-2">
+                        <li class="flex gap-2">
+                            <span class="text-red-400 font-bold">Training:</span> 
+                            <span>Bỏ qua hoàn toàn (Ignored) để tránh nhiễu hàm Loss.</span>
+                        </li>
+                        <li class="flex gap-2">
+                            <span class="text-green-400 font-bold">Testing:</span> 
+                            <span>Vẫn tạo ra nhưng cắt (clip) cho vừa khung ảnh.</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="bg-gray-900/80 p-5 rounded-lg border-l-4 border-purple-500 shadow-md">
+                    <h5 class="text-white font-bold text-base mb-2">📉 Non-Maximum Suppression (NMS)</h5>
+                    <ul class="list-none space-y-2 mt-2">
+                        <li class="flex gap-2">
+                            <span class="text-purple-400 font-bold">Threshold:</span> 
+                            <span>IoU 0.7</span>
+                        </li>
+                        <li class="flex gap-2">
+                            <span class="text-purple-400 font-bold">Result:</span> 
+                            <span>Giảm từ ~6000 xuống ~2000 proposals chất lượng cao.</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 5: HARD EVIDENCE -->
+    <section class="py-24 px-6 max-w-7xl mx-auto">
+        <div class="flex items-center gap-5 mb-10">
+            <div class="h-10 w-2 bg-green-500 rounded-full shadow-[0_0_15px_#22c55e]"></div>
+            <h2 class="text-3xl md:text-4xl font-bold text-white">Kết quả Thực nghiệm (Hard Evidence)</h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <!-- Chart 1: Speed -->
+            <div class="chart-container p-6 rounded-2xl shadow-xl col-span-1 flex flex-col">
+                <h3 class="text-sm font-bold text-gray-400 mb-4 uppercase tracking-widest border-b border-gray-700 pb-2">Tốc độ (ms/image) <span class="text-green-400 ml-1 text-xs normal-case">(Thấp hơn là tốt hơn)</span></h3>
+                <div class="relative h-64 w-full">
+                    <canvas id="speedChart"></canvas>
+                </div>
+                <p class="mt-5 text-sm text-gray-300 bg-black/40 p-3 rounded border-l-2 border-green-500">
+                    Faster R-CNN (VGG16) chỉ mất <strong class="text-white">198ms</strong>, nhanh gấp 10 lần so với 1830ms của Selective Search.
+                </p>
+            </div>
+
+            <!-- Chart 2: Accuracy -->
+            <div class="chart-container p-6 rounded-2xl shadow-xl col-span-1 flex flex-col">
+                <h3 class="text-sm font-bold text-gray-400 mb-4 uppercase tracking-widest border-b border-gray-700 pb-2">Độ chính xác (mAP VOC 2007)</h3>
+                <div class="relative h-64 w-full">
+                    <canvas id="accChart"></canvas>
+                </div>
+                <p class="mt-5 text-sm text-gray-300 bg-black/40 p-3 rounded border-l-2 border-purple-500">
+                    RPN học tốt hơn thuật toán thủ công, đẩy mAP lên <strong class="text-white">73.2%</strong>.
+                </p>
+            </div>
+            
+            <!-- Chart 3: Recall Analysis -->
+            <div class="chart-container p-6 rounded-2xl shadow-xl col-span-1 lg:col-span-1 flex flex-col">
+                <h3 class="text-sm font-bold text-gray-400 mb-4 uppercase tracking-widest border-b border-gray-700 pb-2">Recall vs. #Proposals</h3>
+                <div class="relative h-64 w-full">
+                    <canvas id="recallChart"></canvas>
+                </div>
+                <p class="mt-5 text-sm text-gray-300 bg-black/40 p-3 rounded border-l-2 border-cyan-500">
+                    <strong class="text-cyan-400">Insight:</strong> Khi giảm xuống 300 proposals, Selective Search (đỏ) bị tụt Recall thê thảm. RPN (xanh) vẫn giữ phong độ cao.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION: LIMITATIONS & FUTURE WORK -->
+    <section class="py-20 px-6 max-w-7xl mx-auto border-b border-gray-800 bg-[#0B0F19]">
+        <div class="flex items-center gap-5 mb-10">
+            <div class="h-10 w-2 bg-red-500 rounded-full shadow-[0_0_15px_#ef4444]"></div>
+            <h2 class="text-3xl md:text-4xl font-bold text-white">Hạn chế & Vấn đề tồn đọng</h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Limitations -->
+            <div class="bg-gray-900/50 p-8 rounded-2xl border border-red-900/30 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -mr-16 -mt-16 transition-all group-hover:bg-red-500/20"></div>
+                <h3 class="text-2xl font-bold text-red-400 mb-6 flex items-center gap-3">
+                    <span class="text-3xl">⚠️</span> Nhược điểm (Limitations)
+                </h3>
+                <ul class="space-y-4">
+                    <li class="flex gap-4 items-start">
+                        <span class="bg-red-500/20 text-red-400 font-mono text-xs px-2 py-1 rounded border border-red-500/30 mt-1">TRAINING</span>
+                        <div>
+                            <strong class="text-gray-200 block">Quy trình huấn luyện phức tạp</strong>
+                            <p class="text-sm text-gray-400 mt-1">Việc huấn luyện "4-Step Alternating" rất cồng kềnh. Không phải là end-to-end thực sự trong một lần chạy (single pass). Cần train RPN -> train Detector -> fine-tune RPN -> fine-tune Detector.</p>
+                        </div>
+                    </li>
+                    <li class="flex gap-4 items-start">
+                        <span class="bg-red-500/20 text-red-400 font-mono text-xs px-2 py-1 rounded border border-red-500/30 mt-1">SPEED</span>
+                        <div>
+                            <strong class="text-gray-200 block">Chưa thực sự "Real-time" cao</strong>
+                            <p class="text-sm text-gray-400 mt-1">Dù đạt 5 FPS (VGG16) hoặc 17 FPS (ZF), nó vẫn chưa đủ nhanh cho các ứng dụng video thời gian thực yêu cầu 30 FPS+ (như xe tự lái). (Sau này các mạng one-stage như YOLO/SSD mới giải quyết được).</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Unsolved Problems -->
+            <div class="bg-gray-900/50 p-8 rounded-2xl border border-blue-900/30 relative overflow-hidden group">
+                <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-16 -mt-16 transition-all group-hover:bg-blue-500/20"></div>
+                <h3 class="text-2xl font-bold text-blue-400 mb-6 flex items-center gap-3">
+                    <span class="text-3xl">🧩</span> Chưa giải quyết (Unsolved)
+                </h3>
+                <ul class="space-y-4">
+                    <li class="flex gap-4 items-start">
+                        <span class="bg-blue-500/20 text-blue-400 font-mono text-xs px-2 py-1 rounded border border-blue-500/30 mt-1">JOINT TRAINING</span>
+                        <div>
+                            <strong class="text-gray-200 block">Non-approximate Joint Training</strong>
+                            <p class="text-sm text-gray-400 mt-1">
+                                Paper thừa nhận việc train chung hoàn toàn (Joint Training) gặp khó khăn do lớp <em>RoI Pooling</em> không hỗ trợ lan truyền ngược đạo hàm tọa độ box. 
+                                Tác giả gọi đây là vấn đề "nontrivial" và nằm ngoài phạm vi bài báo.
+                            </p>
+                        </div>
+                    </li>
+                     <li class="flex gap-4 items-start">
+                        <span class="bg-blue-500/20 text-blue-400 font-mono text-xs px-2 py-1 rounded border border-blue-500/30 mt-1">FIXED ANCHORS</span>
+                        <div>
+                            <strong class="text-gray-200 block">Anchors thủ công</strong>
+                            <p class="text-sm text-gray-400 mt-1">
+                                Kích thước và tỷ lệ Anchors là siêu tham số (Hyper-parameters) cố định. Mô hình không tự học được hình dạng tối ưu cho từng dataset cụ thể.
+                            </p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- SECTION 6: CONCLUSION -->
+    <footer class="bg-[#0B0F19] border-t border-gray-800 py-16">
+        <div class="max-w-4xl mx-auto px-6 text-center">
+            <h2 class="text-3xl font-bold text-white mb-8">Kết luận & Di sản</h2>
+            
+            <div class="text-left bg-gray-900 p-8 rounded-xl border border-gray-800 mb-10 shadow-lg">
+                <h4 class="text-blue-400 font-bold text-xl mb-3 flex items-center gap-2">
+                    <span class="text-2xl">🏆</span> So sánh One-Stage vs Two-Stage
+                </h4>
+                <p class="text-base text-gray-300 mb-4 leading-relaxed">
+                    Paper so sánh với OverFeat (One-Stage đời đầu). Kết quả: Hệ thống Two-Stage (RPN + Detector) vượt trội hơn hẳn (58.7% vs 53.9% mAP).
+                </p>
+                <p class="text-base text-gray-300 leading-relaxed">
+                    <strong class="text-white">Tại sao?</strong> Bước "Region Proposal" giúp mạng tập trung sự chú ý (attention) vào các vùng quan trọng, giống như mắt người liếc qua để tìm vật thể trước khi nhìn kỹ.
+                </p>
+            </div>
+
+            <p class="text-gray-500 text-sm font-mono">
+                Visualized based on "Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks" (Ren et al., NIPS 2015).<br>
+            </p>
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- CONFIG ---
+        const colors = {
+            gt: '#22c55e', // Green-500
+            anchorPos: '#ef4444', // Red-500 (Positive Match)
+            anchorNeg: '#6b7280', // Gray-500 (Negative/Ignored) - Dimmed
+            sliding: '#facc15', // Yellow-400
+            grid: '#374151' // Gray-700
+        };
+
+        // --- PLAYGROUND: CANVAS SIMULATION ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        const iouDisplay = document.getElementById('iouDisplay');
+        const statusDisplay = document.getElementById('statusDisplay');
+
+        const STRIDE = 16; 
+        const SCALES = [64, 128, 256]; 
+        const RATIOS = [1, 0.5, 2]; 
+
+        const groundTruths = [
+            { x: 200, y: 150, w: 100, h: 200, label: "Person" }, 
+            { x: 550, y: 300, w: 150, h: 80, label: "Car" }
+        ];
+
+        let mousePos = { x: -100, y: -100 };
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            
+            mousePos = {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+            requestAnimationFrame(draw);
+        });
+
+        function calculateIoU(boxA, boxB) {
+            const a_x1 = boxA.x - boxA.w/2;
+            const a_x2 = boxA.x + boxA.w/2;
+            const a_y1 = boxA.y - boxA.h/2;
+            const a_y2 = boxA.y + boxA.h/2;
+
+            const b_x1_real = boxB.x;
+            const b_x2_real = boxB.x + boxB.w;
+            const b_y1_real = boxB.y;
+            const b_y2_real = boxB.y + boxB.h;
+
+            const x_inter_1 = Math.max(a_x1, b_x1_real);
+            const y_inter_1 = Math.max(a_y1, b_y1_real);
+            const x_inter_2 = Math.min(a_x2, b_x2_real);
+            const y_inter_2 = Math.min(a_y2, b_y2_real);
+
+            if (x_inter_2 < x_inter_1 || y_inter_2 < y_inter_1) return 0.0;
+
+            const area_inter = (x_inter_2 - x_inter_1) * (y_inter_2 - y_inter_1);
+            const area_a = boxA.w * boxA.h;
+            const area_b = boxB.w * boxB.h;
+            const area_union = area_a + area_b - area_inter;
+
+            return area_inter / area_union;
+        }
+
+        function draw() {
+            // Pure black background for max contrast
+            ctx.fillStyle = '#000000'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid - slightly brighter
+            ctx.strokeStyle = '#333333';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let x = 0; x <= canvas.width; x += STRIDE) {
+                ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height);
+            }
+            for (let y = 0; y <= canvas.height; y += STRIDE) {
+                ctx.moveTo(0, y); ctx.lineTo(canvas.width, y);
+            }
+            ctx.stroke();
+
+            // Ground Truths - More vibrant fill
+            groundTruths.forEach(gt => {
+                ctx.fillStyle = 'rgba(34, 197, 94, 0.2)'; 
+                ctx.strokeStyle = colors.gt;
+                ctx.lineWidth = 2;
+                ctx.fillRect(gt.x, gt.y, gt.w, gt.h);
+                ctx.strokeRect(gt.x, gt.y, gt.w, gt.h);
+                
+                // Label background for readability
+                ctx.fillStyle = colors.gt;
+                ctx.fillRect(gt.x, gt.y - 20, 50, 20);
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 12px Inter';
+                ctx.fillText(gt.label, gt.x + 5, gt.y - 5);
+            });
+
+            const gridX = Math.floor(mousePos.x / STRIDE) * STRIDE + STRIDE/2;
+            const gridY = Math.floor(mousePos.y / STRIDE) * STRIDE + STRIDE/2;
+
+            let maxIoU = 0;
+            let bestAnchor = null;
+
+            // Draw all faint anchors first
+            SCALES.forEach(scale => {
+                RATIOS.forEach(ratio => {
+                    const area = scale * scale;
+                    const w = Math.sqrt(area * ratio);
+                    const h = Math.sqrt(area / ratio);
+                    const anchorBox = { x: gridX, y: gridY, w: w, h: h };
+                    
+                    let currentIoU = 0;
+                    groundTruths.forEach(gt => {
+                        const iou = calculateIoU(anchorBox, gt);
+                        if (iou > currentIoU) currentIoU = iou;
+                    });
+
+                    if (currentIoU > maxIoU) {
+                        maxIoU = currentIoU;
+                        bestAnchor = anchorBox;
+                    }
+
+                    ctx.beginPath();
+                    ctx.rect(anchorBox.x - w/2, anchorBox.y - h/2, w, h);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)'; // Brighter faint lines
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                });
+            });
+
+            // Highlight Best Anchor
+            if (bestAnchor) {
+                ctx.beginPath();
+                ctx.rect(bestAnchor.x - bestAnchor.w/2, bestAnchor.y - bestAnchor.h/2, bestAnchor.w, bestAnchor.h);
+                
+                if (maxIoU > 0.7) {
+                    ctx.strokeStyle = '#22c55e'; // Green
+                    ctx.lineWidth = 4; // Thicker
+                    statusDisplay.innerText = "POSITIVE MATCH";
+                    statusDisplay.className = "font-bold text-white text-xs uppercase bg-green-600 px-2 py-1 rounded text-center shadow-[0_0_10px_#22c55e]";
+                    ctx.setLineDash([8, 4]); 
+                    iouDisplay.className = "text-4xl font-bold text-green-400 transition-colors duration-200 drop-shadow-[0_0_5px_rgba(34,197,94,0.5)]";
+                } else if (maxIoU > 0.3) {
+                    ctx.strokeStyle = '#facc15'; // Yellow
+                    ctx.lineWidth = 3;
+                    statusDisplay.innerText = "IGNORED (AMBIGUOUS)";
+                    statusDisplay.className = "font-bold text-black text-xs uppercase bg-yellow-400 px-2 py-1 rounded text-center";
+                    ctx.setLineDash([]);
+                    iouDisplay.className = "text-4xl font-bold text-yellow-400 transition-colors duration-200";
+                } else {
+                    ctx.strokeStyle = '#ef4444'; // Red
+                    ctx.lineWidth = 3;
+                    statusDisplay.innerText = "NEGATIVE (BACKGROUND)";
+                    statusDisplay.className = "font-bold text-white text-xs uppercase bg-red-600 px-2 py-1 rounded text-center";
+                    ctx.setLineDash([]);
+                    iouDisplay.className = "text-4xl font-bold text-red-500 transition-colors duration-200";
+                }
+                
+                ctx.stroke();
+                ctx.setLineDash([]); 
+                
+                // Sliding window center
+                ctx.fillStyle = colors.sliding;
+                ctx.beginPath();
+                ctx.arc(gridX, gridY, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = colors.sliding;
+                ctx.shadowBlur = 0;
+            }
+
+            iouDisplay.innerText = maxIoU.toFixed(2);
+        }
+
+        draw();
+
+
+        // --- CHARTS ---
+        Chart.defaults.color = '#9ca3af';
+        Chart.defaults.borderColor = '#374151';
+
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false, // Critical for responsiveness
+            plugins: { legend: { display: false } },
+            scales: { 
+                x: { 
+                    grid: { color: '#374151', drawBorder: false }, 
+                    ticks: { color: '#e5e7eb', font: { family: 'Inter', size: 11 } } 
+                }, 
+                y: { 
+                    grid: { color: '#374151', drawBorder: false },
+                    ticks: { color: '#e5e7eb', font: { family: 'Inter', size: 11 } } 
+                } 
+            }
+        };
+
+        // Speed Chart
+        new Chart(document.getElementById('speedChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Sel. Search', 'Faster R-CNN'],
+                datasets: [{
+                    data: [1830, 198],
+                    backgroundColor: ['rgba(239, 68, 68, 0.7)', 'rgba(34, 197, 94, 0.9)'],
+                    hoverBackgroundColor: ['rgba(239, 68, 68, 1)', 'rgba(34, 197, 94, 1)'],
+                    borderWidth: 0,
+                    borderRadius: 4
+                }]
+            },
+            options: { ...commonOptions, indexAxis: 'y' }
+        });
+
+        // Accuracy Chart
+        new Chart(document.getElementById('accChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Fast R-CNN', 'Faster R-CNN'],
+                datasets: [{
+                    data: [70.0, 73.2],
+                    backgroundColor: ['rgba(168, 85, 247, 0.6)', 'rgba(168, 85, 247, 1)'], // Purple
+                    hoverBackgroundColor: ['rgba(168, 85, 247, 0.8)', 'rgba(168, 85, 247, 1)'],
+                    borderWidth: 0,
+                    borderRadius: 4
+                }]
+            },
+            options: { ...commonOptions, scales: { y: { min: 60, grid: { color: '#374151' } } } }
+        });
+
+        // Recall Chart
+        new Chart(document.getElementById('recallChart').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: ['300', '1000', '2000'],
+                datasets: [
+                    {
+                        label: 'Faster R-CNN (RPN)',
+                        data: [0.95, 0.98, 0.99], 
+                        borderColor: '#22c55e', // Green
+                        backgroundColor: '#22c55e',
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        tension: 0.3
+                    },
+                    {
+                        label: 'Selective Search',
+                        data: [0.80, 0.92, 0.98],
+                        borderColor: '#ef4444', // Red
+                        backgroundColor: '#ef4444',
+                        borderWidth: 3,
+                        borderDash: [5, 5],
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        tension: 0.3
+                    }
+                ]
+            },
+            options: { 
+                ...commonOptions, 
+                plugins: { legend: { display: true, labels: { color: '#e5e7eb', font: { size: 10 } } } },
+                scales: { y: { min: 0.7, max: 1.0, grid: { color: '#374151' } } }
+            }
+        });
+
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+</body>
+</html>
